@@ -2,3 +2,5 @@
 .env
 *.pem
 *pycache*
+*.pfx
+*.pdf

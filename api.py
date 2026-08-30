@@ -7,9 +7,9 @@ import threading
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 from linkedin_parser import parse_profile
-
+from dotenv import load_dotenv
 from linkedin_profile import LinkedInProfileClient, LinkedInError
-
+load_dotenv()
 # ── Config ───────────────────────────────────────────────────────────────
 LI_AT = os.environ.get("LI_AT", "")
 JSESSIONID = os.environ.get("JSESSIONID", "")

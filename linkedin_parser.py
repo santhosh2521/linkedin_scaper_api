@@ -1,4 +1,22 @@
+"""
+Parse LinkedIn Voyager normalized JSON (the ``included`` array) into a clean
+profile dict. Pure functions — no HTTP, no session state, trivially testable.
+
+Public API:
+    parse_profile(included: list[dict], member_id: str) -> dict
+"""
+
 from __future__ import annotations
+
+
+# LinkedIn's internal proficiency enums -> human-readable labels.
+_PROFICIENCY = {
+    "NATIVE_OR_BILINGUAL": "Native or bilingual",
+    "FULL_PROFESSIONAL": "Full professional",
+    "PROFESSIONAL_WORKING": "Professional working",
+    "LIMITED_WORKING": "Limited working",
+    "ELEMENTARY": "Elementary",
+}
 
 
 def _t(entity: dict) -> str:
@@ -79,35 +97,87 @@ def parse_profile(included: list[dict], member_id: str) -> dict:
     def scoped(type_name: str) -> list[dict]:
         return [e for e in included if _t(e) == type_name]
 
-    experience = [{
-        "title": p.get("title"),
-        "company": p.get("companyName"),
-        "employment_type": p.get("employmentType"),
-        "location": p.get("locationName"),
-        "date_range": _date_range(p.get("dateRange")),
-        "description": p.get("description"),
-    } for p in scoped("Position")]
+    # ── URN lookups for reference-typed fields ───────────────────────────
+    # LinkedIn's normalized graph stores employment type / company / school as
+    # URN pointers on the Position/Education entity; the display values live in
+    # separate entities in `included`. Build id -> entity maps to resolve them.
+    emp_types = {
+        e["entityUrn"]: e.get("name")
+        for e in included
+        if _t(e) == "EmploymentType" and e.get("entityUrn")
+    }
+    companies = {
+        e["entityUrn"]: e
+        for e in included
+        if _t(e) == "Company" and e.get("entityUrn")
+    }
+    schools = {
+        e["entityUrn"]: e
+        for e in included
+        if _t(e) == "School" and e.get("entityUrn")
+    }
 
-    education = [{
-        "school": ed.get("schoolName"),
-        "degree": ed.get("degreeName"),
-        "field_of_study": ed.get("fieldOfStudy"),
-        "grade": ed.get("grade"),
-        "date_range": _date_range(ed.get("dateRange")),
-    } for ed in scoped("Education")]
+    def _emp_type(pos: dict) -> str | None:
+        urn = pos.get("employmentTypeUrn") or pos.get("*employmentType")
+        return emp_types.get(urn)
 
+    def _logo_url(entity: dict | None) -> str | None:
+        """Best logo URL from a Company/School entity's VectorImage."""
+        if not entity:
+            return None
+        vi = (entity.get("logo") or {}).get("vectorImage") or {}
+        arts = vi.get("artifacts") or []
+        if not (vi.get("rootUrl") and arts):
+            return None
+        best = max(arts, key=lambda a: a.get("width", 0))
+        seg = best.get("fileIdentifyingUrlPathSegment", "")
+        return vi["rootUrl"] + seg if seg else None
+
+    # ── Experience ───────────────────────────────────────────────────────
+    experience = []
+    for p in scoped("Position"):
+        company_ent = companies.get(p.get("companyUrn") or p.get("*company"))
+        experience.append({
+            "title": p.get("title"),
+            "company": p.get("companyName") or (company_ent or {}).get("name"),
+            "employment_type": _emp_type(p),
+            "location": p.get("locationName") or p.get("geoLocationName"),
+            "date_range": _date_range(p.get("dateRange")),
+            "description": p.get("description"),
+            "company_url": (company_ent or {}).get("url"),
+            "company_logo": _logo_url(company_ent),
+        })
+
+    # ── Education ─────────────────────────────────────────────────────────
+    education = []
+    for ed in scoped("Education"):
+        school_ent = schools.get(ed.get("schoolUrn") or ed.get("*school"))
+        education.append({
+            "school": ed.get("schoolName") or (school_ent or {}).get("name"),
+            "degree": ed.get("degreeName"),
+            "field_of_study": ed.get("fieldOfStudy"),
+            "grade": ed.get("grade"),
+            "date_range": _date_range(ed.get("dateRange")),
+            "school_url": (school_ent or {}).get("url"),
+            "school_logo": _logo_url(school_ent),
+        })
+
+    # ── Skills ────────────────────────────────────────────────────────────
     skills = [s.get("name") for s in scoped("Skill") if s.get("name")]
 
+    # ── Certifications ────────────────────────────────────────────────────
     certifications = [{
         "name": c.get("name"),
         "authority": c.get("authority"),
         "license_number": c.get("licenseNumber"),
         "url": c.get("url"),
+        "issued": _date_range(c.get("dateRange")),
     } for c in scoped("Certification")]
 
+    # ── Languages ─────────────────────────────────────────────────────────
     languages = [{
-        "name": ln.get("name"),
-        "proficiency": ln.get("proficiency"),
+        "name": ln.get("name") or (ln.get("multiLocaleName") or {}).get("en_US"),
+        "proficiency": _PROFICIENCY.get(ln.get("proficiency"), ln.get("proficiency")),
     } for ln in scoped("Language")]
 
     return {
