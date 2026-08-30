@@ -100,6 +100,12 @@ for backward compatibility**, and are independently verified in this
 implementation. The underlying protocols (Rest.li projections, GraphQL persisted
 queries) are documented; the specific identifiers are not.
 
+**How this was discovered.** The Voyager approach was found **partially** by
+inspecting live network requests and **partially** by researching how LinkedIn's
+Voyager API works in general (its Rest.li conventions, persisted-query and
+decoration mechanics) — since the endpoints themselves predate the current web
+client and are no longer emitted in normal browser traffic.
+
 ### Secondary — SDUI / RSC-worker
 
 LinkedIn migrated the profile page to **Server-Driven UI (SDUI)** built on React
@@ -150,6 +156,11 @@ flowchart LR
 The SDUI `pagerId`s are **hash-free dotted names** (`...details.experience`,
 `...details.education`, …), so they do not rotate between builds the way a
 GraphQL `queryId` does.
+
+**How this was discovered.** The SDUI / RSC-worker approach was found entirely
+by analysing live network requests fired by the current LinkedIn web client —
+every endpoint and payload shape here is observable directly in browser
+traffic, with no external research needed.
 
 > The SDUI implementation ships as a **standalone module / CLI**
 > (`linkedin_sdui.py`), not wired into the HTTP API. The `POST /profile`
