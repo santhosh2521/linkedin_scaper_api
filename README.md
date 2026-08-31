@@ -16,6 +16,11 @@ use `curl_cffi` Chrome TLS impersonation. There is **no official LinkedIn API**
 that returns arbitrary third-party profile data; both approaches consume
 LinkedIn's private, undocumented internal APIs.
 
+**The hosted `POST /profile` endpoint runs the Voyager technique.** It is the
+only approach wired into `api.py`; SDUI/RSC-worker exists as a standalone
+CLI module and is not exposed over HTTP (see the note at the end of the
+[SDUI / RSC-worker](#secondary--sdui--rsc-worker) section).
+
 ---
 
 ## Table of contents
