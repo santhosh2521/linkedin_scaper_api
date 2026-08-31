@@ -187,7 +187,7 @@ need current-traffic endpoints or when Voyager is throttled.
 ├── linkedin_profile.py     # Voyager client  (primary)
 ├── linkedin_parser.py      # Voyager normalized-JSON parser (pure functions)
 ├── linkedin_sdui.py        # SDUI client + RSC parser  (secondary, self-contained, CLI-only)
-├── api.py                  # FastAPI app: POST /profile, GET /health, caching (Voyager)
+├── api.py                  # FastAPI app: POST /profile, GET /, caching (Voyager)
 ├── requirements.txt
 ├── .env                    # secrets — NOT committed
 ├── .env.example
@@ -452,21 +452,13 @@ curl -X POST https://<host>/profile \
   -d '{"url":"https://www.linkedin.com/in/ankur-dhawan01/"}' | jq
 ```
 
-### `GET /health`
+### `GET /`
 
-Liveness by default; `?deep=true` also verifies the LinkedIn session.
-
-```
-GET /health
-GET /health?deep=true
-```
+Liveness check.
 
 ```json
-{ "status": "ok", "uptime_seconds": 42.1, "cached_profiles": 3, "cached_ids": 5 }
+{ "status": "ok" }
 ```
-
-With `?deep=true`, adds `"session_valid": true|false` and returns `503` if the
-session is dead. Deep checks spend one LinkedIn request — use sparingly.
 
 ---
 
